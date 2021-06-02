@@ -1,4 +1,3 @@
-# from pygame import time
 import sys
 import time
 import numpy as np
@@ -8,8 +7,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from rcl_interfaces.msg import ParameterDescriptor
-
-# https://github.com/ros-teleop/teleop_twist_keyboard/blob/master/teleop_twist_keyboard.py
+from rosbot_teleop import RosbotTeleop
 
 
 class Teleop(Node):
@@ -24,8 +22,11 @@ class Teleop(Node):
 
         self.init_parameters()
         self.get_parametes()
+        self.declare_robot_teleop()
         self.init_subs()
         self.init_pubs()
+
+
 
         self.run()
         
@@ -43,9 +44,9 @@ class Teleop(Node):
                 ('w_limit', 2.5),
                 ('lin_a', 0.25),
                 ('ang_a', 0.5),
+                ('update_rate', 20),
             ]
         )
-        print("INIT PARAMETERS")
 
     def get_parametes(self):
         """
@@ -64,10 +65,24 @@ class Teleop(Node):
         
         self.dt = 1 / self.update_rate
 
-    def get_parameters_from_config(self):
+    def declare_robot_teleop(self):
         """
         """
-        pass
+        if self.robot_type == "rosbot":
+            self.robot_teleop = RosbotTeleop(
+                dt=self.dt,
+                v_limit=self.v_limit,
+                w_limit=self.w_limit,
+                lin_a=self.lin_a, 
+                ang_a=self.ang_a
+            )
+        elif self.robot_type == "tankbot":
+            pass # TODO TankBotTeleop
+        elif self.robot_type == "qadrotor":
+            pass # TODO qadrotor
+        else:
+            raise NameError('Unknown Robot type!')
+
 
     def init_subs(self):
         """
@@ -85,61 +100,16 @@ class Teleop(Node):
         """
         pass
 
-    def process_keyboard_control_for_rosbot(self, keys, curr_cmd):
-        """
-        """
-
-        lin_vel = curr_cmd.linear.x
-        ang_vel = curr_cmd.angular.z
-        k = 1
-        if keys[pygame.K_LSHIFT]:
-            k = 2
-
-        if keys[pygame.K_w]:        # forward
-            lin_vel += self.lin_a * self.dt  * k
-        elif keys[pygame.K_s]:      # backward
-            lin_vel -= self.lin_a * self.dt  * k
-        else:
-            lin_vel /= 1.5
-            lin_vel = 0.0 if abs(lin_vel) < 0.001 else lin_vel
-
-        if keys[pygame.K_a]:        # left
-            ang_vel = 0.0 if ang_vel < 0.0 else ang_vel
-            ang_vel += self.ang_a * self.dt  * k
-        elif keys[pygame.K_d]:      # right
-            ang_vel = 0.0 if ang_vel > 0.0 else ang_vel
-            ang_vel -= self.ang_a * self.dt  * k
-        else:
-            ang_vel /= 1.5
-            ang_vel = 0.0 if abs(ang_vel) < 0.001 else ang_vel
-
-        if keys[pygame.K_SPACE]:
-            curr_cmd = Twist()
-
-        lin_vel = np.clip(lin_vel, a_min=-self.v_limit, a_max=self.v_limit)
-        ang_vel = np.clip(ang_vel, a_min=-self.w_limit, a_max=self.w_limit)
-        lin_vel = round(lin_vel, 3)
-        ang_vel = round(ang_vel, 3)
-        print(lin_vel, ang_vel)
-        curr_cmd.linear.x = lin_vel
-        curr_cmd.angular.z = ang_vel
-
-        return curr_cmd
-
     def run(self):
         """
         """
-        print("RUN")
-        # FPS = 60
         W = 640  # ширина экрана
         H = 320  # высота экрана
         WHITE = (255, 255, 255)
-        
-        sc = pygame.display.set_mode((W, H))
-        # clock = pygame.time.Clock()                          
+        sc = pygame.display.set_mode((W, H))   
+
         while rclpy.ok():
             for event in pygame.event.get():
-                # проверка для закрытия окна
                 if event.type == pygame.QUIT:
                     running = False
                     pygame.quit()
@@ -149,8 +119,11 @@ class Teleop(Node):
                         pygame.quit()
                         sys.exit(0)
 
-            keys = pygame.key.get_pressed()
-            self.cmd_msg = self.process_keyboard_control_for_rosbot(keys, self.cmd_msg)
+            self.cmd_msg =  self.robot_teleop.keyboard_cotrol_callback(
+                keys = pygame.key.get_pressed(),
+                curr_cmd = self.cmd_msg
+            )
+
             self.cmd_pub.publish(self.cmd_msg)
             time.sleep(self.dt)
 
