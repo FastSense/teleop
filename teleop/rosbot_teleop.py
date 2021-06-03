@@ -1,7 +1,7 @@
 import numpy as np
 import pygame
 from geometry_msgs.msg import Twist
-
+from sensor_msgs.msg import Joy
 
 
 class RosbotTeleop():
@@ -17,10 +17,13 @@ class RosbotTeleop():
         self.ang_a = ang_a
 
 
+    def get_cmd_msg(self):
+        return Twist()
 
+    def get_joystick_msg(self):
+        return Joy()
 
-
-    def keyboard_cotrol_callback(self, keys, curr_cmd):
+    def process_keyboard_input(self, keys, curr_cmd):
         """
         """
 
@@ -51,6 +54,59 @@ class RosbotTeleop():
         if keys[pygame.K_SPACE]:
             curr_cmd = Twist()
 
+        lin_vel, ang_vel = self.clip_velocities(lin_vel, ang_vel)
+
+        print(lin_vel, ang_vel)
+        curr_cmd.linear.x = lin_vel
+        curr_cmd.angular.z = ang_vel
+
+        return curr_cmd
+
+    # (c)pizheno https://github.com/FastSense/tankbot-rc/blob/refactoring_to_class/tankbot_joystick.py#L54
+    def process_joystick_input(self, msg, curr_cmd):
+        """Callback for joystick input"""
+
+        # Reducing sensitivity of angular velocity control by joystick
+        JOYSTICK_ANGULAR_SCALER = 0.6
+        JOYSTICK_AXIS_LINEAR_VEL = 2     # 1
+        JOYSTICK_AXIS_ANGULAR_VEL = 1    # 0
+        JOYSTICK_AXIS_HEAD_YAW = 3       # 2
+        JOYSTICK_AXIS_HEAD_PITCH = 0     # 3
+
+        # Linear velocity axis
+        # lin = msg.axes[1]
+        lin_vel = -msg.axes[JOYSTICK_AXIS_LINEAR_VEL]
+        # Angular velocity axis
+        # ang = msg.axes[0] * JOYSTICK_ANGULAR_SCALER
+        ang_vel = msg.axes[JOYSTICK_AXIS_ANGULAR_VEL] * JOYSTICK_ANGULAR_SCALER
+
+        # Exponential scaling for input
+        kl = 1
+        ka = 1
+        if lin_vel < 0:
+            lin = abs(lin_vel)
+            kl = -1
+        if ang_vel < 0:
+            ang = abs(ang_vel)
+            ka = -1
+
+        # Exponential scaling for inputs
+        lin_vel = kl * (np.exp(lin_vel) - 1) / (np.e - 1)
+        ang_vel = ka * (np.exp(ang) - 1) / (np.e - 1)
+        lin_vel, ang_vel = self.clip_velocities(lin_vel, ang_vel)
+
+        curr_cmd.linear.x = lin_vel
+        curr_cmd.angular.z = ang_vel
+        return curr_cmd
+        # with self.head_cmd_lock:
+        #     self.head_cmd.angular.x = (msg.axes[JOYSTICK_AXIS_HEAD_YAW] + 1) / 2
+        #     self.head_cmd.angular.y = (-msg.axes[JOYSTICK_AXIS_HEAD_PITCH] + 1) / 2
+
+
+
+    def clip_velocities(self, lin_vel, ang_vel):
+        """
+        """
 
         lin_vel = np.clip(
             lin_vel,
@@ -61,11 +117,8 @@ class RosbotTeleop():
             ang_vel,
             a_min=-self.w_limit, 
             a_max=self.w_limit
-            )
+        )
         lin_vel = round(lin_vel, 3)
         ang_vel = round(ang_vel, 3)
-        print(lin_vel, ang_vel)
-        curr_cmd.linear.x = lin_vel
-        curr_cmd.angular.z = ang_vel
 
-        return curr_cmd
+        return lin_vel, ang_vel
