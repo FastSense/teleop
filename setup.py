@@ -27,7 +27,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        'teleop = teleop.teleop:main', 
+        'keyboard_listener = teleop.keyboard_listener:main',
+        'rosbot_teleop = teleop.rosbot_teleop:main', 
         ],
     },
 )

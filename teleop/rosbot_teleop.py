@@ -16,7 +16,7 @@ class RosbotTeleop(Node):
         self.curr_cmd = Twist()
         self.init_parameters()
         self.get_parametes()
-
+        self.init_subs()
         self.keyboard_sub = self.create_subscription(
             String,
             self.keyboard_topic,
@@ -24,6 +24,25 @@ class RosbotTeleop(Node):
             1
         )
         self.cmd_pub = self.create_publisher(Twist, self.control_topic, 10)
+
+
+    def init_subs(self):
+        """
+        """
+        self.keyboard_sub = self.create_subscription(
+            String,
+            self.keyboard_topic,
+            self.keyboard_callback,
+            1
+        )
+
+        self.joystick_sub = self.create_subscription(
+            Joy,
+            self.joystick_topic,
+            self.joystick_callback,
+            1
+        )
+
 
     def init_parameters(self):
         """
@@ -95,7 +114,7 @@ class RosbotTeleop(Node):
 
         lin_vel, ang_vel = self.clip_velocities(lin_vel, ang_vel)
 
-        print(lin_vel, ang_vel)
+        # print(lin_vel, ang_vel)
         self.curr_cmd.linear.x = lin_vel
         self.curr_cmd.angular.z = ang_vel
 
@@ -103,8 +122,10 @@ class RosbotTeleop(Node):
 
 
     # (c)pizheno https://github.com/FastSense/tankbot-rc/blob/refactoring_to_class/tankbot_joystick.py#L54
-    def process_joystick_input(self, msg, curr_cmd):
-        """Callback for joystick input"""
+    def joystick_callback(self, msg):
+        """
+        Callback for joystick input
+        """
 
         # Reducing sensitivity of angular velocity control by joystick
         JOYSTICK_ANGULAR_SCALER = 0.6
@@ -131,13 +152,13 @@ class RosbotTeleop(Node):
             ka = -1
 
         # Exponential scaling for inputs
-        lin_vel = kl * (np.exp(lin_vel) - 1) / (np.e - 1)
+        lin_vel = kl * (np.exp(lin) - 1) / (np.e - 1)
         ang_vel = ka * (np.exp(ang) - 1) / (np.e - 1)
         lin_vel, ang_vel = self.clip_velocities(lin_vel, ang_vel)
 
-        curr_cmd.linear.x = lin_vel
-        curr_cmd.angular.z = ang_vel
-        return curr_cmd
+        self.curr_cmd.linear.x = lin_vel
+        self.curr_cmd.angular.z = ang_vel
+        return self.curr_cmd
         # with self.head_cmd_lock:
         #     self.head_cmd.angular.x = (msg.axes[JOYSTICK_AXIS_HEAD_YAW] + 1) / 2
         #     self.head_cmd.angular.y = (-msg.axes[JOYSTICK_AXIS_HEAD_PITCH] + 1) / 2

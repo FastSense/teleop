@@ -73,7 +73,7 @@ class KeyboardListener(Node):
     def timer_keyboard_callback(self):
         """
         """
-        os.system('cls' if os.name == 'nt' else 'clear')
+        # os.system('cls' if os.name == 'nt' else 'clear')
         msg = String()
         msg.data = ' '.join(str(k) for k in self.keys_set)
         self.keys_pub.publish(msg)
