@@ -1,66 +1,106 @@
+import rclpy
+from rclpy.node import Node
 import numpy as np
-import pygame
+from std_msgs.msg import String
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Joy
 
 
-class RosbotTeleop():
+class RosbotTeleop(Node):
     """
     """
-    def __init__(self, dt, v_limit, w_limit, lin_a, ang_a):
+    def __init__(self):
         """
         """
-        self.dt = dt
-        self.v_limit = v_limit
-        self.w_limit = w_limit
-        self.lin_a = lin_a
-        self.ang_a = ang_a
+        super().__init__('rosbot_teleop')
+        self.curr_cmd = Twist()
+        self.init_parameters()
+        self.get_parametes()
 
+        self.keyboard_sub = self.create_subscription(
+            String,
+            self.keyboard_topic,
+            self.keyboard_callback,
+            1
+        )
+        self.cmd_pub = self.create_publisher(Twist, self.control_topic, 10)
 
-    def get_cmd_msg(self):
-        return Twist()
+    def init_parameters(self):
+        """
+        Declares node parameters
+        """
+        self.declare_parameters(
+            namespace="",
+            parameters=[
+                ('update_rate', 20),
+                ('keyboard_topic', "/keyboard"),
+                ('control_topic', "/cmd_vel"),
+                ('joystick_topic', "/joy"),
+                ('movable_camera', False),
+                ('v_limit', 0.5),
+                ('w_limit', 2.5),
+                ('lin_a', 0.1),
+                ('ang_a', 0.5),
+            ]
+        )
 
-    def get_joystick_msg(self):
-        return Joy()
+    def get_parametes(self):
+        """
+        Gets node parameters
+        """
+        update_rate = self.get_parameter('update_rate').get_parameter_value().integer_value
+        self.keyboard_topic = self.get_parameter('keyboard_topic').get_parameter_value().string_value
+        self.control_topic = self.get_parameter('control_topic').get_parameter_value().string_value
+        self.joystick_topic = self.get_parameter('joystick_topic').get_parameter_value().string_value
+        self.movable_camera = self.get_parameter('movable_camera').get_parameter_value().bool_value
+        self.v_limit = self.get_parameter('v_limit').get_parameter_value().double_value
+        self.w_limit = self.get_parameter('w_limit').get_parameter_value().double_value
+        self.lin_a = self.get_parameter('lin_a').get_parameter_value().double_value
+        self.ang_a = self.get_parameter('ang_a').get_parameter_value().double_value
+        self.dt = 1 / update_rate
 
-    def process_keyboard_input(self, keys, curr_cmd):
+    def keyboard_callback(self, keyboard_msg):
         """
         """
 
-        lin_vel = curr_cmd.linear.x
-        ang_vel = curr_cmd.angular.z
+        keys = keyboard_msg.data.split(" ")
+
+        lin_vel = self.curr_cmd.linear.x
+        ang_vel = self.curr_cmd.angular.z
         k = 1
-        if keys[pygame.K_LSHIFT]:
+        if 'shift' in keys:
             k = 2
 
-        if keys[pygame.K_w]:    # forward
+        if 'w' in keys:    # forward
             lin_vel += self.lin_a * self.dt  * k
-        elif keys[pygame.K_s]:  # backward
+        elif 's' in keys:  # backward
             lin_vel -= self.lin_a * self.dt  * k
         else:
             lin_vel /= 1.5
             lin_vel = 0.0 if abs(lin_vel) < 0.001 else lin_vel
 
-        if keys[pygame.K_a]:    # left
+        if 'a' in keys:    # left
             ang_vel = 0.0 if ang_vel < 0.0 else ang_vel
             ang_vel += self.ang_a * self.dt  * k
-        elif keys[pygame.K_d]:  # right
+        elif 'd' in keys:  # right
             ang_vel = 0.0 if ang_vel > 0.0 else ang_vel
             ang_vel -= self.ang_a * self.dt  * k
         else:
             ang_vel /= 1.5
             ang_vel = 0.0 if abs(ang_vel) < 0.001 else ang_vel
 
-        if keys[pygame.K_SPACE]:
-            curr_cmd = Twist()
+        if 'space' in keys:
+            lin_vel = 0
+            ang_vel = 0
 
         lin_vel, ang_vel = self.clip_velocities(lin_vel, ang_vel)
 
         print(lin_vel, ang_vel)
-        curr_cmd.linear.x = lin_vel
-        curr_cmd.angular.z = ang_vel
+        self.curr_cmd.linear.x = lin_vel
+        self.curr_cmd.angular.z = ang_vel
 
-        return curr_cmd
+        self.cmd_pub.publish(self.curr_cmd)
+
 
     # (c)pizheno https://github.com/FastSense/tankbot-rc/blob/refactoring_to_class/tankbot_joystick.py#L54
     def process_joystick_input(self, msg, curr_cmd):
@@ -122,3 +162,16 @@ class RosbotTeleop():
         ang_vel = round(ang_vel, 3)
 
         return lin_vel, ang_vel
+
+
+def main():
+    """
+    """
+    rclpy.init()
+    teleop = RosbotTeleop()
+    rclpy.spin(teleop)
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
