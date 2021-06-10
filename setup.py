@@ -28,7 +28,6 @@ setup(
     entry_points={
         'console_scripts': [
         'keyboard_listener = teleop.keyboard_listener:main',
-        'rosbot_teleop = teleop.rosbot_teleop:main', 
         ],
     },
 )
