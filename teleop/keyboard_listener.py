@@ -11,11 +11,13 @@ class KeyboardListener(Node):
     def __init__(self):
         """
         :Attributes:
-            :keys_set:
-            :listener:
-            :dt:
-            :keys_pub:
-            :timer:
+            :keys_set: (set) the set of keys pressed at the current time
+            :listener: (keyboard.Listener) analogue subscription (from ROS)
+                    to keyboard events
+            :dt: time delta between publications
+            :keys_pub: ROS2 publisher, publishes the keys pressed
+            :timer: ROS2 timer
+            :keyboard_topic: (str) name of the topic to publish
          """
         super().__init__('keyboard_listener')
 
@@ -29,8 +31,8 @@ class KeyboardListener(Node):
         self.init_parameters()
         self.get_parametes()
 
-        self.keys_pub = self.create_publisher(String, "/keyboard", 10)
-        self.timer = self.create_timer(self.dt, self.timer_keyboard_callback)
+        self.keys_pub = self.create_publisher(String, self.keyboard_topic, 10)
+        self.timer = self.create_timer(self.dt, self.timer_callback)
 
     def init_parameters(self):
         """
@@ -39,7 +41,8 @@ class KeyboardListener(Node):
         self.declare_parameters(
             namespace="",
             parameters=[
-                ('update_rate', 20)
+                ('update_rate', 20),
+                ('keyboard_topic_name', '/keyboard')
             ]
         )
 
@@ -48,10 +51,13 @@ class KeyboardListener(Node):
         Gets node parameters
         """
         update_rate = self.get_parameter('update_rate').get_parameter_value().integer_value
+        self.keyboard_topic = self.get_parameter('keyboard_topic_name').get_parameter_value().string_value
         self.dt = 1 / update_rate
 
     def on_press(self, pressed_key):
         """
+        Calls when keys are pressed
+        Adds a key name to the set of pressed keys.
         """
         if pressed_key is not None:
             if isinstance(pressed_key, pynput.keyboard.KeyCode) and pressed_key.char is not None:
@@ -62,6 +68,8 @@ class KeyboardListener(Node):
 
     def on_release(self, released_key ):
         """
+        Calls when keys are realesed
+        Remove a key name from the set of pressed keys.
         """
         if released_key is not None:
             if isinstance(released_key, pynput.keyboard.KeyCode) and released_key.char is not None:
@@ -70,10 +78,11 @@ class KeyboardListener(Node):
                 released_key = released_key.name
             self.keys_set.discard(released_key)
 
-    def timer_keyboard_callback(self):
+    def timer_callback(self):
         """
+        callback for a timer event
+        creates a message and publishes it
         """
-        # os.system('cls' if os.name == 'nt' else 'clear')
         msg = String()
         msg.data = ' '.join(str(k) for k in self.keys_set)
         self.keys_pub.publish(msg)

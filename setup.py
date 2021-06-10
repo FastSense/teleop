@@ -16,8 +16,7 @@ setup(
         (os.path.join('share', package_name), glob('config/*/*.yaml')),
     ],
     install_requires=[
-        'setuptools',
-        'pygame'
+        'setuptools'
         ],
     zip_safe=True,
     maintainer='KostyaYamshanov',
